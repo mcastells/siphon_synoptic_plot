@@ -121,45 +121,33 @@ query = set_query_params(query, dt, data_extent)
 query.variables('Potential_temperature_depth_below_sea_1_Hour_Average')
 sst_data = retrieve_data(ncss, query)
 
+def get_data_at_time(data, var_names, dt):
+    time_var = data.variables[find_time_var(data.variables[var_names[0]])]
+    # Convert number of hours since the reference time into an actual date
+    data_time = num2pydate(time_var[:].squeeze(), time_var.units)
+    # Get the indices where the specified date/time occurs. Each model run contains a set of model output date/times, so there can be multiple occurences of model outputs with the date/time we are looking for.
+    data_time_indices = np.where(data_time == dt)
+    # We get the *last* occurance of the date/time we are looking for (from the latest model run) because this would be presumably be the most accurate data available.
+    last_time_index = (data_time_indices[0][-1], data_time_indices[1][-1])
+    data_at_time = []
+    for var_name in var_names:
+        data_at_time.append(data.variables[var_name][:].squeeze()[last_time_index])
+    lat = data.variables['lat'][:].squeeze()
+    lon = data.variables['lon'][:].squeeze()
+    return data_at_time, lat, lon
 
-mslp_time_var = mslp_data.variables[find_time_var(mslp_data.variables['Pressure_reduced_to_MSL_msl'])]
-# Convert number of hours since the reference time into an actual date
-mslp_time = num2pydate(mslp_time_var[:].squeeze(), mslp_time_var.units)
-mslp_time_indices = np.where(mslp_time == dt)
-mslp_last_time_index = (mslp_time_indices[0][-1], mslp_time_indices[1][-1])
+data_at_time, mslp_lat, mslp_lon = get_data_at_time(mslp_data, ['Pressure_reduced_to_MSL_msl'], dt)
+mslp = units.Pa * data_at_time[0]
 
-temp_time_var = temp_data.variables[find_time_var(temp_data.variables['Temperature_height_above_ground'])]
-# Convert number of hours since the reference time into an actual date
-temp_time = num2pydate(temp_time_var[:].squeeze(), temp_time_var.units)
-temp_time_indices = np.where(temp_time == dt)
-temp_last_time_index = (temp_time_indices[0][-1], temp_time_indices[1][-1])
+data_at_time, temp_lat, temp_lon = get_data_at_time(temp_data, ['Temperature_height_above_ground'], dt)
+temp = units.K * data_at_time[0]
 
-wind_time_var = wind_data.variables[find_time_var(wind_data.variables['u-component_of_wind_height_above_ground'])]
-# Convert number of hours since the reference time into an actual date
-wind_time = num2pydate(wind_time_var[:].squeeze(), wind_time_var.units)
-wind_time_indices = np.where(wind_time == dt)
-wind_last_time_index = (wind_time_indices[0][-1], wind_time_indices[1][-1])
+data_at_time, wind_lat, wind_lon = get_data_at_time(wind_data, ['u-component_of_wind_height_above_ground', 'v-component_of_wind_height_above_ground'], dt)
+u_wind_10m = units('m/s') * data_at_time[0]
+v_wind_10m = units('m/s') * data_at_time[1]
 
-sst_time_var = sst_data.variables[find_time_var(sst_data.variables['Potential_temperature_depth_below_sea_1_Hour_Average'])]
-# Convert number of hours since the reference time into an actual date
-sst_time = num2pydate(sst_time_var[:].squeeze(), sst_time_var.units)
-sst_time_indices = np.where(sst_time == dt)
-sst_last_time_index = (sst_time_indices[0][-1], sst_time_indices[1][-1])
-
-# Pull out variables you want to use
-mslp = mslp_data.variables['Pressure_reduced_to_MSL_msl'][:].squeeze()[mslp_last_time_index]
-temp = units.K * temp_data.variables['Temperature_height_above_ground'][:].squeeze()[temp_last_time_index]
-u_wind_10m = units('m/s') * wind_data.variables['u-component_of_wind_height_above_ground'][:].squeeze()[wind_last_time_index]
-v_wind_10m = units('m/s') * wind_data.variables['v-component_of_wind_height_above_ground'][:].squeeze()[wind_last_time_index]
-sst = units.K * sst_data.variables['Potential_temperature_depth_below_sea_1_Hour_Average'][:].squeeze()[sst_last_time_index]
-mslp_lat = mslp_data.variables['lat'][:].squeeze()
-mslp_lon = mslp_data.variables['lon'][:].squeeze()
-temp_lat = temp_data.variables['lat'][:].squeeze()
-temp_lon = temp_data.variables['lon'][:].squeeze()
-wind_lat = wind_data.variables['lat'][:].squeeze()
-wind_lon = wind_data.variables['lon'][:].squeeze()
-sst_lat = sst_data.variables['lat'][:].squeeze()
-sst_lon = sst_data.variables['lon'][:].squeeze()
+data_at_time, sst_lat, sst_lon = get_data_at_time(sst_data, ['Potential_temperature_depth_below_sea_1_Hour_Average'], dt)
+sst = units.K * data_at_time[0]
 
 # Convert winds to knots
 u_wind_10m.ito('kt')
